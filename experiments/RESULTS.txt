@@ -1,0 +1,69 @@
+CertiKeep expiry-date extraction baseline
+Dataset: 10 synthetic OCR-text cases; no real personal documents.
+Exact-match accuracy (including missing-date case): 10/10 = 100%
+[
+  {
+    "id": "C01",
+    "expected": "2027-04-30",
+    "predicted": "2027-04-30",
+    "correct": true
+  },
+  {
+    "id": "C02",
+    "expected": "2027-02-15",
+    "predicted": "2027-02-15",
+    "correct": true
+  },
+  {
+    "id": "C03",
+    "expected": "2026-12-01",
+    "predicted": "2026-12-01",
+    "correct": true
+  },
+  {
+    "id": "C04",
+    "expected": "2027-01-31",
+    "predicted": "2027-01-31",
+    "correct": true
+  },
+  {
+    "id": "C05",
+    "expected": "2028-06-10",
+    "predicted": "2028-06-10",
+    "correct": true
+  },
+  {
+    "id": "C06",
+    "expected": "2027-09-05",
+    "predicted": "2027-09-05",
+    "correct": true
+  },
+  {
+    "id": "C07",
+    "expected": "2026-11-09",
+    "predicted": "2026-11-09",
+    "correct": true
+  },
+  {
+    "id": "C08",
+    "expected": "2027-03-07",
+    "predicted": "2027-03-07",
+    "correct": true
+  },
+  {
+    "id": "C09",
+    "expected": "2027-08-22",
+    "predicted": "2027-08-22",
+    "correct": true
+  },
+  {
+    "id": "C10",
+    "expected": null,
+    "predicted": null,
+    "correct": true
+  }
+]
+
+Interpretation: this tests date parsing from already-extracted text only.
+It does not measure OCR quality, AI performance, real-world generalisation, or compliance.
+The dataset is small and hand-authored; treat this as a baseline, not proof of production accuracy.
