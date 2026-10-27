@@ -24,7 +24,21 @@ Candidate pricing reference: OpenAI GPT-6 Luna standard short-context rates, **$
 Illustrative text-only action: 1,500 input tokens × $0.05/1,000,000 = $0.000075; 200 output tokens × $0.25/1,000,000 = $0.000050; total **$0.000125/action**. Image tokens, retries, taxes and infrastructure are excluded; this is not a full image-processing quote. Official image calculator: https://developers.openai.com/api/docs/guides/image-cost-calculator. Tesseract OCR is Apache-2.0 licensed: https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE.
 
 ## Architecture sketch
-`Upload PDF/photo → validate/preprocess → extraction adapter (local OCR/rules OR hosted vision AI) → normalize and validate fields → human review queue → confirmed certificate database → expiry statuses/reminders + audit export`
+```mermaid
+flowchart TD
+    U[Manager uploads PDF/photo] --> V[File validation and malware checks]
+    V --> P[PDF page/image preprocessing]
+    P --> E[Extraction adapter]
+    E --> L[Local OCR + rules baseline]
+    E -. optional provider adapter .-> A[Hosted vision AI]
+    L --> N[Normalize to schema + validate dates]
+    A --> N
+    N --> R[Review queue: highlight uncertain fields]
+    R -->|Human confirms| DB[(Certificate records)]
+    R -->|Reject / correct| DB
+    DB --> S[Expiry status + 60/30/7-day reminders]
+    DB --> X[Audit report export]
+```
 
 ## Three limitations and switch criteria
 1. Synthetic text is not real scanned certificates.
