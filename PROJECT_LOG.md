@@ -55,7 +55,7 @@ Names and contact details are kept in a private team file and can be shown on re
 - The pain is real at 36 employees: manual checks, manual reminders, last-minute renewals.
 - Micro-businesses don't feel it. Our segment should be firms with 10+ employees.
 - Their current tooling costs almost nothing (Excel/Office 365), so pricing has to be low and saved time has to be obvious.
-- Gap: neither interviewee is a construction firm. Next interviews: [planned construction contacts].
+- Neither company is in construction, yet the 36-employee company has the same problem (manual checks, manual reminders, last-minute renewals). This suggests the need is not specific to construction; we start with construction because certificates there are mandatory, numerous and checked on site, and expand to other regulated sectors later.
 ## 4. Existing alternatives
 
 - **Excel and calendar reminders:** cheap and familiar, but someone still has to enter dates, chase missing files and keep records up to date.
