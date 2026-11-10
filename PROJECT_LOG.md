@@ -9,40 +9,53 @@ Small construction companies need to know whether every worker's safety training
 
 ## 2. Users and customers
 
-Daily users are site or operations managers and HSE (health, safety and environment) officers; employees may upload certificates and receive renewal reminders. The buyer would usually be the owner or operations lead, especially in a company without a dedicated HR team. The first segment is small and medium-sized construction businesses, where training records and site-access checks matter. Eurostat counted around 4 million construction enterprises in the EU in 2023, out of roughly 33 million enterprises in the wider business economy. The 4 million figure covers firms of all sizes, so it is a broad sector indicator, not an exact count of likely SME customers. Source: [Eurostat, “Large businesses make up only 0.2% of EU enterprises” (5 December 2024)](https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20241205-1).
+**Market size.** We start with construction firms in Luxembourg that have at least
+10 employees. Our interviews suggest that very small firms do not feel the problem
+yet: a one-person business owner told us spreadsheets would be enough for years,
+while a 36-employee company spends about 10 minutes every day checking certificates
+and sending reminders by hand.
 
-## 3. Interviews - research status
+| Step | Number | Source |
+|---|---|---|
+| Active construction enterprises in Luxembourg (NACE F) | 4,496 | STATEC, Lustat D1300 |
+| Share with more than 10 employees | ≈ 24% | Luxinnovation (75.6% have 1–10 employees) |
+| **Serviceable market: construction firms with 10+ employees** | **≈ 1,100** | 4,496 × 24% |
+| **Target: 5% within three years** | **≈ 55 firms** | our assumption |
 
-### Interview 1 - Site manager
+Firms of this size have enough workers and certificates that manual tracking becomes
+a recurring cost, but usually no dedicated HR or HSE software. Once we have customers
+in Luxembourg, the next step is the Greater Region (Lorraine, Saarland,
+Rhineland-Palatinate, Wallonia), where many construction firms work across the same
+borders.
 
-- **Role:** Site manager at a SME
-- **Date:** : 7 October 2026
-- **Duration:** 25 minutes 
+## 3. Interviews
 
-**notes**
-- Currently uses a shared spreadsheet and keeps certificate files in email folders or a shared drive; some subcontractor documents are stored separately.
-- When asked about time spent, the interviewee estimates around 2-3 hours each month checking dates and chasing people, with more work before a new project. This is an illustrative assumption, not a real measurement.
-- Training renewals are arranged by phone or email. The manager must remember to contact providers and compare available dates.
-- The biggest frustration in this scenario is last-minute scrambling when a document is missing or out of date; a worker might not be allowed onto a site until the issue is resolved.
-- The manager would want reminders 30 and 60 days before expiry, plus an easy report showing who is cleared for each site.
-- A small monthly subscription could be worth considering if it saves admin time, but a full HR system or a complicated staff app would be a barrier.
-- The manager would want to review extracted dates before they are saved, since an incorrect expiry date could cause a serious problem.
+| # | Company type | Size | Interviewee role | How we reached them | Format | Date | Interviewer(s) |
+|---|---|---|---|---|---|---|---|
+| A | [sector], Luxembourg | 36 employees | HR | Family connection of a team member | Phone, ~10 min | [date] | Sacha |
+| B | [sector], Luxembourg | 1 person (owner) | Owner | Prior acquaintance; first contacted via Discord | Phone, ~15 min | [date] | Luc, Sacha |
 
-### Interview 2 - HSE officer
+Names and contact details are kept in a private team file and can be shown on request.
 
-- **Role:** HSE officer 
-- **Date:** : 9 October 2026
-- **Duration:** 25 minutes 
+### Interview A: HR, 36-person company
+- Tracks employees, certificates and expiry dates in an Excel sheet.
+- Main pain: expiries are checked by hand and reminders are sent by hand.
+- No missed work so far because of expired certificates, but some last-minute stress and extra work to get renewals done in time.
+- Spends about 10 minutes a day checking certificates for 36 employees (~3.5 h/month).
+- Most wanted features: automatic reminder emails and one central platform.
+- Current cost: only the Office 365 subscription they already pay for.
 
-**notes**
-- The officer tracks first aid, working-at-height, forklift and equipment-training records, and needs to know which workers are cleared for particular tasks.
-- Certificates arrive as PDFs, scans and photos. Names may be abbreviated, and expiry dates are not always in the same place on each document.
-- The officer estimates spending 3-4 hours per month checking records and preparing evidence for internal or customer audits.
-- For a rough cost calculation only, assuming staff time costs the company €25 per hour, 3-4 hours represents about €75-€100 per month.
-- The officer wants clear statuses such as valid, expiring soon, missing and needs review, with alerts 60, 30 and 7 days before expiry.
-- The officer would not trust AI to decide legal compliance without review. Extracted dates, certificate type and role requirements should be confirmed by a qualified person.
-- Before adopting a tool, the company would ask how documents are protected, how long they are stored and whether a clean audit report can be exported.
+### Interview B: owner, one-person business
+- No employees yet; expects 2–3 within 3–5 years and more paperwork as the company grows.
+- Has no system for certifications; would give the task to an employee later.
+- Thinks spreadsheets are enough until roughly 100 employees; sees no benefit from CertiKeep at his current size.
+- No preference between a custom build and a subscription; would decide on architecture, UI and ease of use. Expects a custom solution to cost from about €30,000.
 
+### What we learned
+- The pain is real at 36 employees: manual checks, manual reminders, last-minute renewals.
+- Micro-businesses don't feel it. Our segment should be firms with 10+ employees.
+- Their current tooling costs almost nothing (Excel/Office 365), so pricing has to be low and saved time has to be obvious.
+- Gap: neither interviewee is a construction firm. Next interviews: [planned construction contacts].
 ## 4. Existing alternatives
 
 - **Excel and calendar reminders:** cheap and familiar, but someone still has to enter dates, chase missing files and keep records up to date.
@@ -57,6 +70,7 @@ For site and operations managers at small construction firms who need to keep wo
 
 Certificates arrive as scans, phone photos and PDFs in different layouts, so copying every name, certificate type and expiry date into a spreadsheet is slow and error-prone. AI-based document reading can extract the likely details and match them to a worker's record, while confidence checks send unclear cases to a person. It can also pre-fill renewal paperwork. A manager should still verify extracted dates and any role-specific legal requirements; AI should support compliance decisions, not make them unchecked.
 
-## Source
+## Sources
 
-- Eurostat, “Large businesses make up only 0.2% of EU enterprises” (5 December 2024): https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20241205-1
+- STATEC, *Le Luxembourg en chiffres 2024*, active enterprises by economic activity (Lustat D1300): https://statistiques.public.lu/dam-assets/catalogue-publications/luxembourg-en-chiffres/2024/luxembourg-en-chiffres-2024.pdf
+- Luxinnovation, *Panorama of Luxembourg's construction ecosystem* (2025): https://luxinnovation.lu/resources/construction-ecosystem-facts-figures
