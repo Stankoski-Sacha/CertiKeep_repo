@@ -1,7 +1,7 @@
 # Certification and Compliance Tracker
 
 **Product working name:** CertiKeep  
-**Initial market:** Small and medium-sized construction firms  
+**Initial market:** Construction firms in Luxembourg with 10+ employees  
 
 ## 1. Problem statement
 
@@ -9,11 +9,9 @@ Small construction companies need to know whether every worker's safety training
 
 ## 2. Users and customers
 
-**Market size.** We start with construction firms in Luxembourg that have at least
-10 employees. Our interviews suggest that very small firms do not feel the problem
-yet: a one-person business owner told us spreadsheets would be enough for years,
-while a 36-employee company spends about 10 minutes every day checking certificates
-and sending reminders by hand.
+Daily users are site or operations managers and HSE (health, safety and environment) officers; employees may upload certificates and receive renewal reminders. The buyer would usually be the owner or operations lead, especially in a company without a dedicated HR team. The first segment is construction businesses in Luxembourg with at least 10 employees, where training records and site-access checks matter.
+
+**Market size.** We start with construction firms in Luxembourg that have at least 10 employees. Our interviews suggest that very small firms do not feel the problem yet: a one-person business owner told us spreadsheets would be enough for years, while a 36-employee company spends about 10 minutes every day checking certificates and sending reminders by hand.
 
 | Step | Number | Source |
 |---|---|---|
@@ -22,11 +20,9 @@ and sending reminders by hand.
 | **Serviceable market: construction firms with 10+ employees** | **≈ 1,100** | 4,496 × 24% |
 | **Target: 5% within three years** | **≈ 55 firms** | our assumption |
 
-Firms of this size have enough workers and certificates that manual tracking becomes
-a recurring cost, but usually no dedicated HR or HSE software. Once we have customers
-in Luxembourg, the next step is the Greater Region (Lorraine, Saarland,
-Rhineland-Palatinate, Wallonia), where many construction firms work across the same
-borders.
+Firms of this size have enough workers and certificates that manual tracking becomes a recurring cost, but usually no dedicated HR or HSE software. Once we have customers in Luxembourg, the next step is the Greater Region (Lorraine, Saarland, Rhineland-Palatinate, Wallonia), where many construction firms work across the same borders.
+
+<!-- TODO: replace the 24% / ≈1,100 with STATEC's exact count of construction firms with 10–249 employees (Lustat table DF_D1301), and add the reference year of the 4,496 figure. -->
 
 ## 3. Interviews
 
@@ -55,7 +51,8 @@ Names and contact details are kept in a private team file and can be shown on re
 - The pain is real at 36 employees: manual checks, manual reminders, last-minute renewals.
 - Micro-businesses don't feel it. Our segment should be firms with 10+ employees.
 - Their current tooling costs almost nothing (Excel/Office 365), so pricing has to be low and saved time has to be obvious.
-- Neither company is in construction, yet the 36-employee company has the same problem (manual checks, manual reminders, last-minute renewals). This suggests the need is not specific to construction; we start with construction because certificates there are mandatory, numerous and checked on site, and expand to other regulated sectors later.
+- Gap: neither interviewee is a construction firm. Next interviews: [planned construction contacts].
+
 ## 4. Existing alternatives
 
 - **Excel and calendar reminders:** cheap and familiar, but someone still has to enter dates, chase missing files and keep records up to date.

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Upload{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Upload a certificate</h1></div>
+<section class="card narrow">
+  <form method="post" enctype="multipart/form-data" class="form" id="upform">
+    <label>Your name <input name="user" value="{{ current_user() }}" required placeholder="recorded in the audit trail"></label>
+    <label>Certificate scan or photo (JPG, PNG, WEBP or PDF, max 15 MB)
+      <input type="file" name="file" accept=".jpg,.jpeg,.png,.webp,.pdf" required></label>
+    <button class="btn primary" id="upbtn">Upload and read with AI</button>
+    <p class="muted small">Gemini reads the document and suggests the worker, certificate type and dates.
+      You check them next to the scan on the next page. Nothing turns green until you confirm.</p>
+  </form>
+</section>
+<script>
+  document.getElementById('upform').addEventListener('submit', () => {
+    const b = document.getElementById('upbtn'); b.disabled = true; b.textContent = 'Reading the document… (5–20 s)';
+  });
+</script>
+{% endblock %}

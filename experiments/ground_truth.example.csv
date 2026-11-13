@@ -1,0 +1,3 @@
+file,worker_name,certificate_type,issue_date,expiry_date,readable,source,notes
+#example_medical.jpg,Jane Doe,medical_fitness,2025-03-14,2027-03-14,yes,own certificate (Sacha),phone photo; leave a cell empty if the field is not printed
+#example_blurry.jpg,,,,,no,own certificate (Luc),deliberately blurry photo

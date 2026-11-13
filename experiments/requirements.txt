@@ -1,0 +1,4 @@
+# Python 3.10+
+google-genai>=1.0        # Gemini API (approach A)
+pytesseract>=0.3.10      # Tesseract wrapper (approach B) - also install the tesseract binary, see README
+Pillow>=10.0

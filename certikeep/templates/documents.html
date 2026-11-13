@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Documents{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>All documents</h1><a class="btn primary" href="{{ url_for('upload') }}">Upload certificate</a></div>
+<section class="card">
+<table>
+  <thead><tr><th>File</th><th>Worker</th><th>Type</th><th>Expiry</th><th>Status</th><th>Confirmed by</th></tr></thead>
+  <tbody>
+  {% for d in docs %}
+    {% set st = doc_status(d) %}
+    <tr class="{{ 'rejected' if d.rejected }}">
+      <td><a href="{{ url_for('review', doc_id=d.id) }}">{{ d.original_name }}</a></td>
+      <td>{{ d.worker_name or '–' }}</td>
+      <td>{{ CERT_TYPES.get(d.certificate_type, '–') }}</td>
+      <td>{{ d.expiry_date|pretty_date }}</td>
+      <td>{% if d.rejected %}<span class="tag">Rejected</span>{% else %}<span class="chip s-{{ st }}">{{ STATUS_LABELS[st] }}</span>{% endif %}</td>
+      <td>{{ d.confirmed_by or '–' }}{% if d.confirmed_at %} <span class="muted small">{{ d.confirmed_at|replace('T', ' ') }}</span>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="muted">No documents yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</section>
+{% endblock %}

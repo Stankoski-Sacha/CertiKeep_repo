@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Audit trail{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Audit trail</h1><a class="btn" href="{{ url_for('audit_csv') }}">Export CSV</a></div>
+<section class="card">
+<p class="muted">Every upload, AI suggestion, correction and confirmation, with who and when. The AI's original answer is never overwritten.</p>
+<table class="audit">
+  <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Document</th><th>Details</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr><td class="nowrap">{{ e.at|replace('T', ' ') }}</td><td>{{ e.actor }}</td><td>{{ e.action|replace('_', ' ') }}</td>
+      <td>{% if e.document_id %}<a href="{{ url_for('review', doc_id=e.document_id) }}">#{{ e.document_id }}</a>{% endif %}</td>
+      <td><code>{{ e.detail }}</code></td></tr>
+  {% else %}<tr><td colspan="5" class="muted">Nothing yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</section>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Review {{ doc.original_name }}{% endblock %}
+{% block content %}
+{% set f = form or doc %}
+{% set selected_worker = (form.worker_id if form else doc.worker_id) %}
+{% set st = doc_status(doc) %}
+<div class="pagehead">
+  <h1>{{ doc.original_name }}</h1>
+  <span class="chip big s-{{ 'needs_review' if doc.rejected else st }}">{{ 'Rejected' if doc.rejected else STATUS_LABELS[st] }}</span>
+</div>
+
+<div class="review">
+  <section class="card scan">
+    {% if doc.mime_type == 'application/pdf' %}
+      <iframe src="{{ url_for('document_file', doc_id=doc.id) }}" title="scan"></iframe>
+    {% else %}
+      <a href="{{ url_for('document_file', doc_id=doc.id) }}" target="_blank"><img src="{{ url_for('document_file', doc_id=doc.id) }}" alt="certificate scan"></a>
+    {% endif %}
+    <p class="muted small">Uploaded by {{ doc.uploaded_by }} on {{ doc.uploaded_at|replace('T', ' ') }}</p>
+  </section>
+
+  <section class="card fields">
+    {% if doc.ai_error %}
+      <div class="banner warn"><b>The AI could not read this document.</b> {{ doc.ai_error }}<br>Enter the values from the scan by hand, or run the AI again.</div>
+    {% elif not doc.ai_readable and doc.ai_model %}
+      <div class="banner warn"><b>The AI marked this document as unreadable</b> (blurry, cut off or unknown layout). Enter the values from the scan, or reject it and ask for a better photo.</div>
+    {% elif doc.ai_model %}
+      <div class="banner info">Suggested by {{ doc.ai_model }} in {{ doc.ai_latency_s }} s. Check each field against the scan.</div>
+    {% endif %}
+
+    {% if doc.confirmed_at %}
+      <div class="banner ok">Confirmed by <b>{{ doc.confirmed_by }}</b> on {{ doc.confirmed_at|replace('T', ' ') }}.</div>
+    {% endif %}
+
+    {% if issues %}
+    <ul class="issues">
+      {% for i in issues %}<li class="{{ i.level }}">{{ i.msg }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('confirm', doc_id=doc.id) }}" class="form">
+      <label><span class="lt">Worker {% if not form %}<span class="conf c-{{ conf.get('worker_name', 'low') }}">AI: {{ conf.get('worker_name', '–') }}</span>{% endif %}</span>
+        <select name="worker_id" {{ 'disabled' if doc.confirmed_at }}>
+          <option value="">— choose —</option>
+          {% for w in workers %}<option value="{{ w.id }}" {{ 'selected' if w.id == selected_worker }}>{{ w.name }}</option>{% endfor %}
+        </select>
+        {% if not form and doc.worker_name and not doc.worker_id %}<small class="hint">AI read “{{ doc.worker_name }}”, which is not in the worker list.</small>{% endif %}
+      </label>
+      <label><span class="lt">Certificate type {% if not form %}<span class="conf c-{{ conf.get('certificate_type', 'low') }}">AI: {{ conf.get('certificate_type', '–') }}</span>{% endif %}</span>
+        <select name="certificate_type" {{ 'disabled' if doc.confirmed_at }}>
+          <option value="">— choose —</option>
+          {% for key, label in CERT_TYPES.items() %}<option value="{{ key }}" {{ 'selected' if key == f.certificate_type }}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="row2">
+        <label><span class="lt">Issue date {% if not form %}<span class="conf c-{{ conf.get('issue_date', 'low') }}">AI: {{ conf.get('issue_date', '–') }}</span>{% endif %}</span>
+          <input type="date" name="issue_date" value="{{ f.issue_date or '' }}" {{ 'disabled' if doc.confirmed_at }}></label>
+        <label><span class="lt">Expiry date {% if not form %}<span class="conf c-{{ conf.get('expiry_date', 'low') }}">AI: {{ conf.get('expiry_date', '–') }}</span>{% endif %}</span>
+          <input type="date" name="expiry_date" value="{{ f.expiry_date or '' }}" {{ 'disabled' if doc.confirmed_at }}></label>
+      </div>
+      {% if not doc.confirmed_at and not doc.rejected %}
+        <label>Confirmed by <input name="user" value="{{ current_user() }}" required placeholder="your name"></label>
+        <button class="btn primary">I checked these against the scan — confirm</button>
+      {% endif %}
+    </form>
+
+    {% if not doc.confirmed_at and not doc.rejected %}
+    <div class="actions">
+      <form method="post" action="{{ url_for('retry', doc_id=doc.id) }}"><button class="btn">Run AI again</button></form>
+      <form method="post" action="{{ url_for('reject', doc_id=doc.id) }}" class="rejectform">
+        <input name="reason" placeholder="Reason (e.g. wrong document, too blurry)">
+        <button class="btn ghost">Reject</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <details class="history"><summary>History of this document ({{ history|length }})</summary>
+      <ul>{% for h in history %}<li><span class="muted">{{ h.at|replace('T', ' ') }}</span> <b>{{ h.actor }}</b> {{ h.action|replace('_', ' ') }} <code>{{ h.detail }}</code></li>{% endfor %}</ul>
+    </details>
+  </section>
+</div>
+{% endblock %}

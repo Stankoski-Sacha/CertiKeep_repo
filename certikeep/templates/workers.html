@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Workers{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Workers</h1></div>
+<div class="grid2">
+<section class="card">
+  <h2>Add a worker</h2>
+  <form method="post" class="form">
+    <label>Name <input name="name" required placeholder="e.g. Marc Weber"></label>
+    <label>Role <input name="role" placeholder="e.g. Mason"></label>
+    <fieldset><legend>Required certificates</legend>
+      {% for key, label in CERT_TYPES.items() if key != 'other' %}
+        <label class="check"><input type="checkbox" name="required" value="{{ key }}"> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <button class="btn primary">Add worker</button>
+  </form>
+  <form method="post" action="{{ url_for('add_demo_workers') }}" class="inline">
+    <button class="btn">Add the 4 example workers (for the specimen certificates)</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Worker list <span class="pill">{{ workers|length }}</span></h2>
+  <p class="muted">Names on certificates are checked against this list.</p>
+  <table>
+    <thead><tr><th>Name</th><th>Role</th><th>Must hold</th><th></th></tr></thead>
+    <tbody>
+    {% for w in workers %}
+      <tr><td>{{ w.name }}</td><td>{{ w.role }}</td>
+        <td>{% for t in reqs.get(w.id, []) %}<span class="tag">{{ CERT_TYPES[t] }}</span>{% endfor %}</td>
+        <td><form method="post" action="{{ url_for('delete_worker', worker_id=w.id) }}" onsubmit="return confirm('Remove {{ w.name }}?')">
+          <button class="btn small ghost">Remove</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No workers yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+</div>
+{% endblock %}

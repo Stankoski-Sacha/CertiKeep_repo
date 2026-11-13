@@ -1,59 +1,83 @@
 # CertiKeep — technical choice and first MVP plan
-**19 October 2026 | Initial market: small and medium-sized construction firms**
+**Updated [date] | Initial market: construction firms in Luxembourg with 10+ employees**
 
-**Problem.** Site managers and HSE officers receive certificates as PDFs, scans and photos. CertiKeep should extract likely worker names, certificate types and dates, flag missing/expiring credentials and support audit-ready records. AI output must be reviewed by a qualified person before it is treated as confirmed.
+**Problem.** Site managers and HSE officers receive certificates (training certificates, licences, medical fitness-for-work certificates) as PDFs, scans and phone photos. CertiKeep extracts the worker name, certificate type and dates, flags missing or expiring certificates and keeps an audit trail. Extracted values are suggestions: a person confirms each one before it counts.
 
 ## Two candidate approaches
 
-| Dimension | A. Hosted vision AI | B. Local OCR + rules |
+| Dimension | A. Hosted vision AI (Gemini) | B. Local OCR + rules (Tesseract) |
 |---|---|---|
-| Output quality | Likely handles varied layouts/context better; must test | Predictable on clean text; brittle on varied layouts |
-| Cost per unit | API usage charges, variable with tokens/images | No per-request model fee; compute and maintenance remain |
-| Latency | Network + model processing | Local processing; depends on device and scan |
-| Data needed | Certificate image/PDF page + schema/prompt | Image/PDF + OCR language pack and parsing rules |
-| Failure modes | Misread/hallucinated fields, API outage, privacy risk | OCR errors, ambiguous dates, rules miss unseen layouts |
-| Vendor lock-in | Medium–high unless behind an adapter | Low–medium; engine can be swapped, rules still need work |
+| Output quality | Measured in our experiment (see below) | Measured in our experiment (see below) |
+| Cost per unit | Free tier for testing; paid per token in production | No per-request fee; compute and maintenance |
+| Latency | Network + model processing | Local processing |
+| Data needed | Image + prompt with a fixed JSON schema | Image + language packs + hand-written rules |
+| Failure modes | Plausible-looking wrong or invented values; API outage; data leaves our servers | OCR errors on photos; rules miss unseen layouts |
+| Vendor lock-in | Medium, reduced by a provider-neutral extraction interface | Low |
 
-**Decision.** For the first prototype, keep a provider-neutral extraction interface and measure local OCR/rules as a baseline before selecting a hosted vision model. Do not claim a winner before comparing both on the same documents.
+## Experiment
 
-## First experiment
-`python3 experiments/date_extraction_experiment.py` runs 10 synthetic OCR-text cases. Result: **10/10 exact matches (100%)** for expiry-date extraction, including one missing-date case. This tests date parsing only; it does not measure OCR, AI quality or real-world generalisation. Three illustrative cases: ISO date `2027-04-30` → correct; day-first `15/02/2027` → `2027-02-15`; missing expiry → `null`. The last case shows the parser can abstain when no date is present.
+**Question:** which approach reads real certificates more reliably?
 
-## First cost estimate — 19 October 2026
-Candidate pricing reference: OpenAI GPT-6 Luna standard short-context rates, **$0.05/1M input tokens and $0.25/1M output tokens** (official pricing: https://developers.openai.com/api/docs/pricing?tab=suite; checked 19 Oct 2026).
-Illustrative text-only action: 1,500 input tokens × $0.05/1,000,000 = $0.000075; 200 output tokens × $0.25/1,000,000 = $0.000050; total **$0.000125/action**. Image tokens, retries, taxes and infrastructure are excluded; this is not a full image-processing quote. Official image calculator: https://developers.openai.com/api/docs/guides/image-cost-calculator. Tesseract OCR is Apache-2.0 licensed: https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE.
+**Setup.** [N] real or redacted certificates ([describe mix: e.g. 3 medical fitness, 2 first aid, 1 forklift; 4 phone photos, 3 scans, 1 PDF; 1 deliberately blurry]). A person typed what is printed on each document into `experiments/ground_truth.csv` before running the models. Both approaches received the same images. Code: `experiments/` (instructions in `experiments/README.md`).
 
-## Architecture sketch
+**Results** (full table in [`experiments/RESULTS.md`](../experiments/RESULTS.md)):
+
+| Metric | Gemini | Tesseract |
+|---|---|---|
+| Name accuracy | [ ] | [ ] |
+| Type accuracy | [ ] | [ ] |
+| Issue date accuracy | [ ] | [ ] |
+| Expiry date accuracy | [ ] | [ ] |
+| **Wrong or invented expiry dates** | [ ] | [ ] |
+| Unreadable photo flagged instead of guessed | [ ] | [ ] |
+| Average time per document | [ ] | [ ] |
+
+**Decision.** We choose **[Gemini / Tesseract]** because [main reason from the table, e.g. "it read 9/10 expiry dates correctly against 5/10, and the one error was caught by our validation rules"]. [One sentence on what the other approach is still used for, e.g. "Tesseract stays as an offline fallback" or "not used".]
+
+**What the experiment does not show.** [N] documents is a small sample; one document can change the result. We tested only the layouts we had access to.
+
+## Cost estimate — [date]
+Experiment: €0 (Gemini free tier, Tesseract is open source, Apache-2.0: https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE).
+
+Production estimate for the chosen approach: [if Gemini: tokens per certificate image from `results/gemini` × current paid price for the model from https://ai.google.dev/gemini-api/docs/pricing; if Tesseract: hosting cost]. Example customer: 40 workers × 4 certificates = 160 documents per year → [€ per customer per year].
+
+## Architecture
+
 ```mermaid
 flowchart TD
-    U[Manager uploads PDF/photo] --> V[File validation and malware checks]
-    V --> P[PDF page/image preprocessing]
-    P --> E[Extraction adapter]
-    E --> L[Local OCR + rules baseline]
-    E -. optional provider adapter .-> A[Hosted vision AI]
-    L --> N[Normalize to schema + validate dates]
-    A --> N
-    N --> R[Review queue: highlight uncertain fields]
-    R -->|Human confirms| DB[(Certificate records)]
-    R -->|Reject / correct| DB
-    DB --> S[Expiry status + 60/30/7-day reminders]
-    DB --> X[Audit report export]
+    U[Manager uploads PDF/photo] --> V[File validation]
+    V --> P[Page/image preprocessing]
+    P --> E[Extraction adapter: chosen approach]
+    E --> N[Normalize to schema]
+    N --> C{Validation in code<br/>expiry after issue, plausible range,<br/>known worker, confidence}
+    C -->|unreadable / fails a check / low confidence| R[Needs review]
+    C -->|passes| R2[Waiting for confirmation]
+    R --> H[Person checks fields next to the scan]
+    R2 --> H
+    H -->|confirm or correct| DB[(Certificate record<br/>+ confirmed_by, confirmed_at)]
+    DB --> T[Workers × certificates table:<br/>valid / expiring 30 or 60 days / expired / missing / needs review]
+    DB --> X[Reminders + audit export]
 ```
 
-## Three limitations and switch criteria
-1. Synthetic text is not real scanned certificates.
-2. Ambiguous layouts and dates can associate a correct date with the wrong field/person.
-3. Extracted data cannot itself establish legal/site compliance; human verification remains mandatory.
+Rules implemented in `experiments/validation.py`: a certificate never turns green on the model's word alone; it needs no validation issues **and** a person's confirmation, which is recorded with name and time.
 
-Switch the default only after testing both candidates on the same ≥50 synthetic/redacted representative documents. Target: ≥10 percentage-point improvement in exact-match expiry-date and certificate-type extraction, within agreed cost/latency limits, and after privacy review. Any incorrect expiry date is high severity and must be reviewable.
+## Limitations and when we would switch
+1. Small sample of real documents; layouts from other training providers may behave differently.
+2. A correct date can be attached to the wrong field (issue vs expiry). Validation rules catch some of these, human confirmation catches the rest.
+3. Extraction cannot establish legal or site compliance; the required certificates per role are configured by the company.
+
+We would switch approach if, on a larger set (≥ 30 documents), the other approach produces fewer wrong or invented expiry dates at an acceptable cost.
 
 ## MVP plan
+
 | Task | Owner | Due |
 |---|---|---|
-| Finalise fields and status rules | Whole team | 20 Oct 2026 |
-| Build 50-case evaluation set | Whole team | 22 Oct 2026 |
-| Implement provider-neutral extraction schema | Whole team | 26 Oct 2026 |
-| Test hosted candidate on same cases | Whole team | 27 Oct 2026 |
-| Build human-review UI | Whole team  | 30 Oct 2026 |
-| Add reminders and audit export; privacy review/demo | Whole team | 6 Nov 2026 |
-
+| Collect and redact scans, write ground truth | Mattéo | [date] |
+| Run Gemini pipeline, tune prompt | Luc | [date] |
+| Run Tesseract pipeline, evaluate, write RESULTS.md | Sacha | [date] |
+| Two interviews with construction firms each | Sacha, Luc, Mattéo | [date] |
+| Exact market numbers from STATEC (Lustat D1301) | Mattéo | [date] |
+| Decision + cost estimate in this document | Luc | [date] |
+| Review screen: scan next to extracted fields, confirm button (M3) | [owner] | [date] |
+| Workers × certificates status table + reminders (M3) | [owner] | [date] |
+| Audit export with confirmed_by / confirmed_at (M3) | [owner] | [date] |

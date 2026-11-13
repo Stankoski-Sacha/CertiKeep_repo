@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Status{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <h1>Certificate status</h1>
+  <a class="btn primary" href="{{ url_for('upload') }}">Upload certificate</a>
+</div>
+
+<div class="counts">
+  {% for key in ['valid', 'expiring_60', 'expiring_30', 'expired', 'missing', 'needs_review'] %}
+    <div class="count s-{{ key }}"><b>{{ counts[key] }}</b><span>{{ STATUS_LABELS[key] }}</span></div>
+  {% endfor %}
+</div>
+
+{% if inbox %}
+<section class="card inbox">
+  <h2>Waiting for review <span class="pill">{{ inbox|length }}</span></h2>
+  <p class="muted">Nothing below counts as valid until a person checks it against the scan and confirms.</p>
+  <ul class="list">
+  {% for d in inbox %}
+    <li>
+      <a href="{{ url_for('review', doc_id=d.id) }}">{{ d.original_name }}</a>
+      <span class="muted">— {{ d.worker_name or 'name not read' }}, {{ CERT_TYPES.get(d.certificate_type, 'type not read') }}</span>
+      {% if d.ai_error %}<span class="tag warn">AI failed</span>{% elif not d.ai_readable %}<span class="tag warn">unreadable</span>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Workers × required certificates</h2>
+  {% if not rows %}
+    <p class="muted">No workers yet. <a href="{{ url_for('workers_page') }}">Add workers</a> and the certificates each one needs.</p>
+  {% else %}
+  <table class="matrix">
+    <thead><tr><th>Worker</th><th>Role</th><th>Certificates</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td class="name">{{ row.worker.name }}</td>
+        <td class="muted">{{ row.worker.role }}</td>
+        <td><div class="cells">
+          {% for ctype, cell in row.cells %}
+            {% if cell.doc %}<a class="chip s-{{ cell.status }}" href="{{ url_for('review', doc_id=cell.doc.id) }}"
+               title="{{ STATUS_LABELS[cell.status] }}{% if cell.doc.expiry_date %} — expires {{ cell.doc.expiry_date|pretty_date }}{% endif %}">
+            {% else %}<span class="chip s-{{ cell.status }}" title="No certificate uploaded">{% endif %}
+              <b>{{ CERT_TYPES[ctype] }}</b>
+              <small>{{ STATUS_LABELS[cell.status] }}{% if cell.doc and cell.doc.confirmed_at %} · {{ cell.doc.expiry_date|pretty_date }}{% endif %}{% if cell.pending and cell.doc.confirmed_at %} · +{{ cell.pending }} to review{% endif %}</small>
+            {% if cell.doc %}</a>{% else %}</span>{% endif %}
+          {% else %}<span class="muted">no requirements set</span>{% endfor %}
+        </div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}
