@@ -1,0 +1,14 @@
+# Secrets: commit .env.example instead
+.env
+
+# Local data: database and uploaded certificate scans
+instance/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

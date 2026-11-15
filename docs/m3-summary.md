@@ -50,5 +50,5 @@ document image goes to Gemini.
 | Person | Contribution |
 |---|---|
 | Sacha | First website design and AI implementation |
-| Luc | [one line] |
+| Luc |  |
 | Mattéo | Improvements to the website design, with help of claude code. Solving the issues with the AI |
