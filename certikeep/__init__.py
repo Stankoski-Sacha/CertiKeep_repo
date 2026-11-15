@@ -1,5 +1,8 @@
 """CertiKeep web app: upload a certificate -> AI extracts fields -> code validates ->
-a person confirms next to the scan -> workers x certificates status table."""
+a person confirms next to the scan -> workers x certificates status table.
+
+The AI read runs in a background thread: the upload answers at once and the review page
+polls /documents/<id>/status until the suggestion is there (or the read has failed)."""
 from __future__ import annotations
 
 import csv
@@ -7,7 +10,9 @@ import io
 import json
 import os
 import secrets
+import threading
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,7 +23,8 @@ from . import db as dbm
 from .db import get_db, log, now
 from .domain import (CERT_TYPES, STATUS_LABELS, has_errors, name_key, parse_date, status,
                      validate)
-from .extraction import FIELDS, ExtractionError, extract
+from .extraction import FIELDS, TOTAL_BUDGET_S, ExtractionError, extract
+from .icons import icon
 
 ALLOWED = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
            ".webp": "image/webp", ".pdf": "application/pdf"}
@@ -40,6 +46,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         UPLOAD_DIR=os.path.join(app.instance_path, "uploads"),
         MAX_CONTENT_LENGTH=15 * 1024 * 1024,
         EXTRACT=extract,     # swapped out only in unit tests
+        AI_BACKGROUND=True,  # False: read inside the request (unit tests)
+        AI_STALE_S=TOTAL_BUDGET_S + 50,   # a read still "pending" after this is declared failed
     )
     if test_config:
         app.config.update(test_config)
@@ -47,7 +55,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     dbm.init_db(app.config["DATABASE"])
     app.teardown_appcontext(dbm.close_db)
 
-    app.jinja_env.globals.update(CERT_TYPES=CERT_TYPES, STATUS_LABELS=STATUS_LABELS)
+    def asset(filename: str) -> str:
+        """Static URL with the file's change time, so browsers pick up a new CSS/JS at once."""
+        try:
+            version = int((Path(app.static_folder) / filename).stat().st_mtime)
+        except OSError:
+            version = 0
+        return url_for("static", filename=filename, v=version)
+
+    app.jinja_env.globals.update(CERT_TYPES=CERT_TYPES, STATUS_LABELS=STATUS_LABELS, icon=icon, asset=asset)
 
     # ------------------------------------------------------------------ helpers
     def user() -> str:
@@ -81,14 +97,34 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.jinja_env.globals.update(doc_status=doc_status, current_user=user)
 
-    def run_ai(doc_id: int, path: Path, mime: str, actor: str) -> None:
+    def ai_pending(doc) -> bool:
+        return doc["ai_status"] == "pending"
+
+    def ai_elapsed(doc) -> int:
+        try:
+            return max(0, int((datetime.now() - datetime.fromisoformat(doc["ai_started_at"])).total_seconds()))
+        except (TypeError, ValueError):
+            return 0
+
+    def ai_failed(doc_id: int, message: str) -> None:
+        db = get_db()
+        db.execute("UPDATE documents SET ai_status = 'done', ai_error = ?, ai_readable = 0 WHERE id = ?",
+                   (message, doc_id))
+        log(doc_id, "system", "ai_failed", message)
+        db.commit()
+
+    def run_ai(doc_id: int) -> None:
         """Run extraction and store the suggestion. Failures leave empty fields -> needs review."""
         db = get_db()
+        doc = db.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
         try:
-            ex = app.config["EXTRACT"](path.read_bytes(), mime, worker_names())
+            path = Path(app.config["UPLOAD_DIR"]) / doc["stored_name"]
+            ex = app.config["EXTRACT"](path.read_bytes(), doc["mime_type"], worker_names())
         except ExtractionError as exc:
-            db.execute("UPDATE documents SET ai_error = ?, ai_readable = 0 WHERE id = ?", (str(exc), doc_id))
-            log(doc_id, "system", "ai_failed", str(exc))
+            ai_failed(doc_id, str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001 - e.g. SDK not installed, file unreadable
+            ai_failed(doc_id, f"The AI step stopped unexpectedly ({type(exc).__name__}: {str(exc)[:160]}).")
             return
         # Link to a known worker only on an exact (order/accent-insensitive) name match.
         worker_id, name = None, ex.fields.get("worker_name")
@@ -96,18 +132,41 @@ def create_app(test_config: dict | None = None) -> Flask:
             if name and name_key(w["name"]) == name_key(name):
                 worker_id, name = w["id"], w["name"]
                 break
-        db.execute(
-            """UPDATE documents SET ai_json = ?, ai_model = ?, ai_readable = ?, ai_error = ?, ai_latency_s = ?,
-               worker_id = ?, worker_name = ?, certificate_type = ?, issue_date = ?, expiry_date = ?,
-               confidences = ? WHERE id = ?""",
-            (ex.raw, ex.model, int(ex.readable), ex.error, ex.latency_s, worker_id, name,
-             ex.fields.get("certificate_type"), ex.fields.get("issue_date"), ex.fields.get("expiry_date"),
-             json.dumps(ex.confidences), doc_id))
+        # The AI's answer is always stored for the record ...
+        db.execute("""UPDATE documents SET ai_json = ?, ai_model = ?, ai_readable = ?, ai_error = ?, ai_latency_s = ?,
+                      ai_status = 'done' WHERE id = ?""",
+                   (ex.raw, ex.model, int(ex.readable), ex.error, ex.latency_s, doc_id))
+        # ... but it must not overwrite values a person confirmed (or rejected) while it was still reading.
+        db.execute("""UPDATE documents SET worker_id = ?, worker_name = ?, certificate_type = ?, issue_date = ?,
+                      expiry_date = ?, confidences = ? WHERE id = ? AND confirmed_at IS NULL AND rejected = 0""",
+                   (worker_id, name, ex.fields.get("certificate_type"), ex.fields.get("issue_date"),
+                    ex.fields.get("expiry_date"), json.dumps(ex.confidences), doc_id))
         if ex.error:
             log(doc_id, "system", "ai_failed", ex.error)
         else:
             log(doc_id, f"AI ({ex.model})", "ai_extracted",
                 {"readable": ex.readable, **ex.fields, "confidence": ex.confidences, "seconds": ex.latency_s})
+        db.commit()
+
+    def start_ai(doc_id: int) -> None:
+        """Mark the document as being read and start the read (in a thread unless AI_BACKGROUND is off)."""
+        db = get_db()
+        db.execute("UPDATE documents SET ai_status = 'pending', ai_started_at = ?, ai_error = NULL WHERE id = ?",
+                   (now(), doc_id))
+        db.commit()
+        if not app.config["AI_BACKGROUND"]:
+            run_ai(doc_id)
+            return
+
+        def work() -> None:
+            with app.app_context():
+                try:
+                    run_ai(doc_id)
+                except Exception as exc:  # noqa: BLE001 - last resort: the page must stop waiting
+                    get_db().rollback()
+                    ai_failed(doc_id, f"The AI step stopped unexpectedly ({type(exc).__name__}).")
+
+        threading.Thread(target=work, name=f"certikeep-ai-{doc_id}", daemon=True).start()
 
     # ------------------------------------------------------------------ dashboard
     @app.route("/")
@@ -211,8 +270,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         doc_id = cur.lastrowid
         log(doc_id, actor, "uploaded", f.filename)
         db.commit()
-        run_ai(doc_id, path, ALLOWED[ext], actor)
-        db.commit()
+        start_ai(doc_id)     # returns at once; the review page shows progress
         return redirect(url_for("review", doc_id=doc_id))
 
     # ------------------------------------------------------------------ review
@@ -226,8 +284,22 @@ def create_app(test_config: dict | None = None) -> Flask:
         doc = doc_or_404(doc_id)
         history = get_db().execute("SELECT * FROM audit_log WHERE document_id = ? ORDER BY id",
                                    (doc_id,)).fetchall()
-        return render_template("review.html", doc=doc, form=None, issues=doc_issues(doc),
-                               conf=json.loads(doc["confidences"] or "{}"), workers=workers(), history=history)
+        pending = ai_pending(doc)
+        # While the AI is still reading, empty fields are not mistakes yet: no validation messages.
+        return render_template("review.html", doc=doc, form=None, issues=[] if pending else doc_issues(doc),
+                               conf=json.loads(doc["confidences"] or "{}"), workers=workers(), history=history,
+                               pending=pending, elapsed=ai_elapsed(doc))
+
+    @app.get("/documents/<int:doc_id>/status")
+    def ai_status(doc_id: int):
+        """Polled by the review page while the AI reads. Also the safety net for a read that never ends."""
+        doc = doc_or_404(doc_id)
+        pending, elapsed = ai_pending(doc), ai_elapsed(doc)
+        if pending and elapsed > app.config["AI_STALE_S"]:
+            ai_failed(doc_id, f"The AI read did not finish within {app.config['AI_STALE_S']} s. "
+                              "Press 'Run AI again', or fill in the fields by hand.")
+            pending = False
+        return {"pending": pending, "elapsed": elapsed}
 
     @app.get("/documents/<int:doc_id>/file")
     def document_file(doc_id: int):
@@ -254,7 +326,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             history = db.execute("SELECT * FROM audit_log WHERE document_id = ? ORDER BY id", (doc_id,)).fetchall()
             return render_template("review.html", doc=doc, form={**form, "worker_id": worker["id"] if worker else None},
                                    issues=issues, conf=json.loads(doc["confidences"] or "{}"),
-                                   workers=workers(), history=history), 422
+                                   workers=workers(), history=history,
+                                   pending=ai_pending(doc), elapsed=ai_elapsed(doc)), 422
         changes = {f: {"ai": doc[f], "confirmed": form[f]} for f in FIELDS if (doc[f] or "") != form[f]}
         db.execute("""UPDATE documents SET worker_id = ?, worker_name = ?, certificate_type = ?, issue_date = ?,
                       expiry_date = ?, confirmed_by = ?, confirmed_at = ? WHERE id = ?""",
@@ -272,11 +345,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         doc = doc_or_404(doc_id)
         if doc["confirmed_at"]:
             flash("Already confirmed; the AI result is kept for the record.", "error")
-        else:
-            actor = user() or "unknown"
-            log(doc_id, actor, "ai_rerun_requested")
-            run_ai(doc_id, Path(app.config["UPLOAD_DIR"]) / doc["stored_name"], doc["mime_type"], actor)
-            get_db().commit()
+        elif not ai_pending(doc):       # a second click while it is reading does nothing
+            log(doc_id, user() or "unknown", "ai_rerun_requested")
+            start_ai(doc_id)
         return redirect(url_for("review", doc_id=doc_id))
 
     @app.post("/documents/<int:doc_id>/reject")
@@ -315,5 +386,35 @@ def create_app(test_config: dict | None = None) -> Flask:
     def pretty_date(value):
         d = parse_date(value) if isinstance(value, str) else None
         return d.strftime("%d %b %Y") if d else (value or "–")
+
+    @app.template_filter("pretty_dt")
+    def pretty_dt(value):
+        """'2026-11-13T15:50:02' -> '13 Nov 2026, 15:50'."""
+        try:
+            return datetime.fromisoformat(value).strftime("%d %b %Y, %H:%M")
+        except (TypeError, ValueError):
+            return value or "–"
+
+    @app.template_filter("initials")
+    def initials(name):
+        parts = (name or "").split()
+        return ((parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")) if parts else "?").upper()
+
+    @app.template_filter("hue")
+    def hue(name):
+        """Stable colour per person for the avatar circle."""
+        return sum(ord(c) for c in (name or "")) * 37 % 360
+
+    @app.template_filter("detail_pairs")
+    def detail_pairs(detail):
+        """Audit details are JSON objects or plain text; return [(key, text)] for objects, else None."""
+        try:
+            data = json.loads(detail)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        show = lambda v: "–" if v is None else (v if isinstance(v, str) else json.dumps(v, ensure_ascii=False))  # noqa: E731
+        return [(k.replace("_", " "), show(v)) for k, v in data.items()]
 
     return app

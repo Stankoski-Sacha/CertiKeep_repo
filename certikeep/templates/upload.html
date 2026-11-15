@@ -1,20 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Upload{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>Upload a certificate</h1></div>
-<section class="card narrow">
-  <form method="post" enctype="multipart/form-data" class="form" id="upform">
-    <label>Your name <input name="user" value="{{ current_user() }}" required placeholder="recorded in the audit trail"></label>
-    <label>Certificate scan or photo (JPG, PNG, WEBP or PDF, max 15 MB)
-      <input type="file" name="file" accept=".jpg,.jpeg,.png,.webp,.pdf" required></label>
-    <button class="btn primary" id="upbtn">Upload and read with AI</button>
-    <p class="muted small">Gemini reads the document and suggests the worker, certificate type and dates.
-      You check them next to the scan on the next page. Nothing turns green until you confirm.</p>
-  </form>
-</section>
-<script>
-  document.getElementById('upform').addEventListener('submit', () => {
-    const b = document.getElementById('upbtn'); b.disabled = true; b.textContent = 'Reading the document… (5–20 s)';
-  });
-</script>
+<div class="pagehead">
+  <div>
+    <h1>Upload a certificate</h1>
+    <p class="sub">One certificate per file. The AI reads it in the background while you look at the scan.</p>
+  </div>
+</div>
+<div class="upload-grid">
+  <section class="card">
+    <form method="post" enctype="multipart/form-data" class="form" id="upform">
+      <div class="dropzone" id="dropzone">
+        {# The real file input covers the whole zone, so clicking and dropping both work without scripts. #}
+        <input type="file" name="file" id="file" accept=".jpg,.jpeg,.png,.webp,.pdf" required
+               aria-label="Certificate scan or photo (JPG, PNG, WEBP or PDF, max 15 MB)">
+        <div class="dz-empty">
+          <span class="dz-ic">{{ icon('upload') }}</span>
+          <b>Drop a scan or photo here</b>
+          <span class="muted">or click to choose a file · JPG, PNG, WEBP or PDF · max 15 MB</span>
+        </div>
+        <div class="dz-file" hidden>
+          <span class="dz-thumb">{{ icon('file') }}</span>
+          <span class="dz-meta"><b class="dz-name"></b><span class="muted dz-size"></span></span>
+          <span class="dz-change">Change</span>
+        </div>
+      </div>
+      <p class="field-error" id="file-error" role="alert" hidden></p>
+      <label>Your name <input name="user" value="{{ current_user() }}" required autocomplete="name" placeholder="recorded in the audit trail"></label>
+      <button class="btn primary lg" id="upbtn">{{ icon('sparkles') }}<span>Upload and read with AI</span></button>
+    </form>
+  </section>
+
+  <aside class="card steps-card">
+    <h2>What happens next</h2>
+    <ol class="steps">
+      <li><span class="step-n">1</span><div><b>Upload</b><p class="muted">The file is saved and you go straight to the review page.</p></div></li>
+      <li><span class="step-n">2</span><div><b>Gemini reads the document</b><p class="muted">It suggests the worker, certificate type and dates. This usually takes 5–20 seconds and stops by itself if Gemini does not answer.</p></div></li>
+      <li><span class="step-n">3</span><div><b>You check and confirm</b><p class="muted">You compare the fields with the scan. Nothing turns green until you confirm.</p></div></li>
+    </ol>
+  </aside>
+</div>
 {% endblock %}

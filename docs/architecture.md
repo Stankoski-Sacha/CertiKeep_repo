@@ -57,5 +57,6 @@ flowchart TB
 |---|---|
 | Blurry photo / unknown layout | AI marks it unreadable → empty fields, *needs review*, banner asking to type the values or reject |
 | Gemini error, rate limit, no key | Document saved, banner with the reason, *Run AI again* button, manual entry still possible |
+| Gemini overloaded or slow | The upload is not blocked: the read runs in the background with a 30 s limit per call, a second model is tried, and after about 100 s it stops with a banner. Fields can be typed by hand meanwhile |
 | AI returns an impossible date | Validation error; cannot be confirmed until corrected |
 | Name not in worker list | Not linked; reviewer must pick the worker |

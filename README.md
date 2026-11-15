@@ -40,7 +40,7 @@ Data (database and uploaded files) is stored locally in `instance/` and is not c
 | Step | What happens | Code |
 |---|---|---|
 | Upload | JPG, PNG, WEBP or PDF, max 15 MB | `certikeep/__init__.py` |
-| AI extraction | Gemini returns JSON: worker, type, issue date, expiry date, confidence per field, readable yes/no. It is told never to guess or compute dates. | `certikeep/extraction.py` |
+| AI extraction | Runs in the background, so the upload answers at once and the review page shows progress. Gemini returns JSON: worker, type, issue date, expiry date, confidence per field, readable yes/no. It is told never to guess or compute dates. | `certikeep/extraction.py` |
 | Validation in code | Expiry after issue, dates in a plausible range, name matches a known worker, low-confidence fields flagged | `certikeep/domain.py` |
 | Human review | Scan and fields side by side; the person corrects and confirms. Errors block confirmation. | `templates/review.html` |
 | Status | Nothing is green until confirmed. Unreadable or failed AI → *needs review*, never a guess. | `certikeep/domain.py` |
@@ -62,6 +62,9 @@ The tests replace Gemini with a fixed answer so the flow can be checked offline;
 - **"GEMINI_API_KEY is not set"** – the `.env` file is missing or the key is empty (step 4).
 - **"Gemini model not found"** – Google retired the model; set `GEMINI_MODEL=` in `.env` to a current one from AI Studio.
 - **"free-tier limit reached"** – wait a minute and press *Run AI again*, or enter the fields by hand.
+- **"Gemini is overloaded or too slow"** – each call is cut off after 30 s and a second model is tried
+  (`GEMINI_FALLBACK_MODEL=` in `.env`, default `gemini-3.6-flash`; leave it empty to switch this off). If both
+  fail the read stops after about 100 s: press *Run AI again* later, or enter the fields by hand.
 - **Port already in use** – `PORT=8001 python app.py` (Windows PowerShell: `$env:PORT=8001; python app.py`).
 
 ## M2 experiment

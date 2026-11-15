@@ -15,5 +15,5 @@ and check that your Gemini key works by uploading one file and deleting `instanc
 | 2:30–2:50 | Audit trail | "Everything is logged: the AI's original answer, my corrections, who confirmed and when. It can be exported as CSV." |
 | 2:50–3:00 | Status page | "One known limitation: certificates without an expiry date stay in review. Next: reminders and logins." |
 
-Keep the real Gemini call visible (the "Reading the document…" button state). Do not cut it out: the brief asks
+Keep the real Gemini call visible (the "Reading the document…" panel on the review page). Do not cut it out: the brief asks
 for a recording of the running product.

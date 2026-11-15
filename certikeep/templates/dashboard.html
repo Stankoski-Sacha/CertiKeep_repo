@@ -1,27 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Status{% endblock %}
 {% block content %}
+{% set order = ['valid', 'expiring_60', 'expiring_30', 'expired', 'missing', 'needs_review'] %}
+{% set total = counts.values()|sum %}
+{% set in_date = counts.valid + counts.expiring_60 + counts.expiring_30 %}
 <div class="pagehead">
-  <h1>Certificate status</h1>
-  <a class="btn primary" href="{{ url_for('upload') }}">Upload certificate</a>
+  <div>
+    <h1>Certificate status</h1>
+    <p class="sub">{{ rows|length }} worker{{ '' if rows|length == 1 else 's' }} · {{ total }} required certificate{{ '' if total == 1 else 's' }}</p>
+  </div>
+  <a class="btn primary" href="{{ url_for('upload') }}">{{ icon('upload') }}Upload certificate</a>
 </div>
 
-<div class="counts">
-  {% for key in ['valid', 'expiring_60', 'expiring_30', 'expired', 'missing', 'needs_review'] %}
-    <div class="count s-{{ key }}"><b>{{ counts[key] }}</b><span>{{ STATUS_LABELS[key] }}</span></div>
+<div class="stats">
+  {% for key in order %}
+    <div class="stat s-{{ key }}">
+      <span class="stat-label"><i class="dot"></i>{{ STATUS_LABELS[key] }}</span>
+      <b class="stat-num">{{ counts[key] }}</b>
+    </div>
   {% endfor %}
 </div>
 
+{% if total %}
+<section class="card coverage">
+  <div class="coverage-head">
+    <h2>Coverage</h2>
+    <span class="muted"><b class="ink">{{ in_date }}</b> of {{ total }} required certificates confirmed and in date</span>
+  </div>
+  <div class="bar" role="img" aria-label="{% for key in order %}{{ STATUS_LABELS[key] }}: {{ counts[key] }}{{ ', ' if not loop.last }}{% endfor %}">
+    {% for key in order if counts[key] %}<span class="seg s-{{ key }}" style="flex-grow: {{ counts[key] }}" title="{{ STATUS_LABELS[key] }}: {{ counts[key] }}"></span>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {% if inbox %}
 <section class="card inbox">
-  <h2>Waiting for review <span class="pill">{{ inbox|length }}</span></h2>
+  <h2>{{ icon('inbox') }}Waiting for review <span class="pill">{{ inbox|length }}</span></h2>
   <p class="muted">Nothing below counts as valid until a person checks it against the scan and confirms.</p>
-  <ul class="list">
+  <ul class="rows">
   {% for d in inbox %}
     <li>
-      <a href="{{ url_for('review', doc_id=d.id) }}">{{ d.original_name }}</a>
-      <span class="muted">— {{ d.worker_name or 'name not read' }}, {{ CERT_TYPES.get(d.certificate_type, 'type not read') }}</span>
-      {% if d.ai_error %}<span class="tag warn">AI failed</span>{% elif not d.ai_readable %}<span class="tag warn">unreadable</span>{% endif %}
+      <a class="row" href="{{ url_for('review', doc_id=d.id) }}">
+        <span class="fileicon">{{ icon('file') }}</span>
+        <span class="row-main">
+          <b>{{ d.original_name }}</b>
+          <span class="muted">{{ d.worker_name or 'name not read' }} · {{ CERT_TYPES.get(d.certificate_type, 'type not read') }}</span>
+        </span>
+        {% if d.ai_status == 'pending' %}<span class="tag info"><i class="spinner"></i>AI reading…</span>
+        {% elif d.ai_error %}<span class="tag warn">AI failed</span>
+        {% elif not d.ai_readable %}<span class="tag warn">unreadable</span>{% endif %}
+        <span class="row-go">Review {{ icon('arrow') }}</span>
+      </a>
     </li>
   {% endfor %}
   </ul>
@@ -31,16 +60,20 @@
 <section class="card">
   <h2>Workers × required certificates</h2>
   {% if not rows %}
-    <p class="muted">No workers yet. <a href="{{ url_for('workers_page') }}">Add workers</a> and the certificates each one needs.</p>
+    <div class="empty">
+      <span class="empty-ic">{{ icon('users') }}</span>
+      <p><b>No workers yet.</b><br><span class="muted">Add workers and the certificates each one needs.</span></p>
+      <a class="btn" href="{{ url_for('workers_page') }}">{{ icon('plus') }}Add workers</a>
+    </div>
   {% else %}
-  <table class="matrix">
-    <thead><tr><th>Worker</th><th>Role</th><th>Certificates</th></tr></thead>
-    <tbody>
+  <div class="matrix">
     {% for row in rows %}
-      <tr>
-        <td class="name">{{ row.worker.name }}</td>
-        <td class="muted">{{ row.worker.role }}</td>
-        <td><div class="cells">
+      <div class="mrow">
+        <div class="person">
+          <span class="avatar" style="--h: {{ row.worker.name|hue }}">{{ row.worker.name|initials }}</span>
+          <span><b class="name">{{ row.worker.name }}</b><span class="muted small">{{ row.worker.role }}</span></span>
+        </div>
+        <div class="cells">
           {% for ctype, cell in row.cells %}
             {% if cell.doc %}<a class="chip s-{{ cell.status }}" href="{{ url_for('review', doc_id=cell.doc.id) }}"
                title="{{ STATUS_LABELS[cell.status] }}{% if cell.doc.expiry_date %} — expires {{ cell.doc.expiry_date|pretty_date }}{% endif %}">
@@ -49,11 +82,10 @@
               <small>{{ STATUS_LABELS[cell.status] }}{% if cell.doc and cell.doc.confirmed_at %} · {{ cell.doc.expiry_date|pretty_date }}{% endif %}{% if cell.pending and cell.doc.confirmed_at %} · +{{ cell.pending }} to review{% endif %}</small>
             {% if cell.doc %}</a>{% else %}</span>{% endif %}
           {% else %}<span class="muted">no requirements set</span>{% endfor %}
-        </div></td>
-      </tr>
+        </div>
+      </div>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

@@ -94,45 +94,111 @@ def parse_response(raw: str) -> Extraction:
     return ex
 
 
-def extract(file_bytes: bytes, mime_type: str, known_workers: list[str]) -> Extraction:
-    """Call Gemini on one document. Network/model errors are returned in Extraction.error."""
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
-    if not api_key:
-        raise ExtractionError("GEMINI_API_KEY is not set. Add it to the .env file (see README).")
+DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_FALLBACK_MODEL = "gemini-3.6-flash"   # tried when the main model is overloaded, slow or retired
+ATTEMPT_TIMEOUT_S = 30     # one call may take this long, then we move on
+TOTAL_BUDGET_S = 100       # the whole read gives up after this, so nobody waits forever
+BUSY_COOLDOWN_S = 300      # a model that was overloaded is tried last for this long
 
+_busy_until: dict[str, float] = {}   # model -> time.time() until which it counts as busy
+
+
+def model_chain() -> list[str]:
+    """Models to try, in order: GEMINI_MODEL, then GEMINI_FALLBACK_MODEL (comma-separated, may be empty)."""
+    primary = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+    fallbacks = os.environ.get("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).split(",")
+    return list(dict.fromkeys([primary, *(m.strip() for m in fallbacks if m.strip())]))
+
+
+def _gemini_caller(api_key: str, file_bytes: bytes, mime_type: str, prompt: str):
+    """Return generate(model, timeout_s) -> raw JSON text, backed by the real Gemini API."""
     from google import genai          # imported here so the rest of the app runs without the SDK
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
     config = types.GenerateContentConfig(temperature=0, response_mime_type="application/json",
                                          response_schema=RESPONSE_SCHEMA)
-    contents = [types.Part.from_bytes(data=file_bytes, mime_type=mime_type), build_prompt(known_workers)]
+    contents = [types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
 
+    def generate(model: str, timeout_s: float) -> str:
+        # Without a timeout the SDK waits as long as Google does (minutes when the model is overloaded).
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout_s * 1000)))
+        return client.models.generate_content(model=model, contents=contents, config=config).text
+
+    return generate
+
+
+def extract(file_bytes: bytes, mime_type: str, known_workers: list[str], generate=None) -> Extraction:
+    """Read one document with Gemini. Network/model errors are returned in Extraction.error.
+
+    Each call is capped at ATTEMPT_TIMEOUT_S. If a model is overloaded, too slow or not found, the next
+    model in model_chain() is tried; the whole read stops after TOTAL_BUDGET_S. An overloaded model is
+    tried last for the next BUSY_COOLDOWN_S.
+    `generate` is only passed by unit tests.
+    """
+    if generate is None:
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            raise ExtractionError("GEMINI_API_KEY is not set. Add it to the .env file (see README).")
+        generate = _gemini_caller(api_key, file_bytes, mime_type, build_prompt(known_workers))
+
+    # Models that were overloaded a moment ago go to the back, so the next upload does not wait for them again.
+    models = sorted(model_chain(), key=lambda m: _busy_until.get(m, 0) > time.time())
     start = time.perf_counter()
-    last_error = None
-    for attempt in range(3):
-        try:
-            resp = client.models.generate_content(model=model, contents=contents, config=config)
-            ex = parse_response(resp.text)
-            ex.model, ex.latency_s = model, round(time.perf_counter() - start, 2)
-            return ex
-        except Exception as exc:  # noqa: BLE001 - the SDK raises several error types
-            last_error = str(exc)
-            if any(c in last_error for c in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE")) and attempt < 2:
-                time.sleep(10 * (attempt + 1))
+    elapsed = lambda: time.perf_counter() - start   # noqa: E731
+    failures: list[tuple[str, str]] = []            # (kind, message)
+    for round_no in range(2):
+        busy = False
+        for model in models:
+            left = TOTAL_BUDGET_S - elapsed()
+            if left < 5:
+                break
+            try:
+                raw = generate(model, min(ATTEMPT_TIMEOUT_S, left))
+            except Exception as exc:  # noqa: BLE001 - the SDK raises several error types
+                kind = _kind(exc)
+                failures.append((kind, str(exc)))
+                if kind == "auth":                  # the same key fails on every model
+                    return Extraction(model=model, error=_friendly(failures), latency_s=round(elapsed(), 2))
+                if kind == "busy":
+                    busy = True
+                    _busy_until[model] = time.time() + BUSY_COOLDOWN_S
                 continue
+            _busy_until.pop(model, None)
+            ex = parse_response(raw)
+            ex.model, ex.latency_s = model, round(elapsed(), 2)
+            return ex
+        # One more round only for overload/timeouts, which are often gone a few seconds later.
+        if not busy or round_no or TOTAL_BUDGET_S - elapsed() < 10:
             break
-    ex = Extraction(model=model, error=_friendly(last_error), latency_s=round(time.perf_counter() - start, 2))
-    return ex
+        time.sleep(3)
+    return Extraction(model=models[0], error=_friendly(failures), latency_s=round(elapsed(), 2))
 
 
-def _friendly(msg: str | None) -> str:
-    msg = msg or "unknown error"
-    if "404" in msg or "NOT_FOUND" in msg:
-        return "Gemini model not found. Set GEMINI_MODEL in .env to a model listed in Google AI Studio."
-    if "API_KEY" in msg or "401" in msg or "403" in msg:
+def _kind(exc: Exception) -> str:
+    """Classify an SDK/network error: auth, quota, busy (overloaded or timed out), not_found or other."""
+    code, msg = getattr(exc, "code", None), str(exc)
+    has = lambda *words: any(w in msg for w in words)   # noqa: E731
+    if code in (401, 403) or has("API_KEY", "API key", "PERMISSION_DENIED", "UNAUTHENTICATED"):
+        return "auth"
+    if code == 429 or has("429", "RESOURCE_EXHAUSTED"):
+        return "quota"
+    if code == 404 or has("NOT_FOUND"):
+        return "not_found"
+    if (code in (500, 502, 503, 504) or "timeout" in type(exc).__name__.lower()
+            or has("503", "504", "UNAVAILABLE", "DEADLINE_EXCEEDED", "timed out", "overloaded")):
+        return "busy"
+    return "other"
+
+
+def _friendly(failures: list[tuple[str, str]]) -> str:
+    kinds = [k for k, _ in failures]
+    if "auth" in kinds:
         return "Gemini rejected the API key. Check GEMINI_API_KEY in .env."
-    if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+    if "quota" in kinds:
         return "Gemini free-tier limit reached. Wait a minute and press 'Run AI again', or fill in the fields by hand."
-    return "Gemini call failed: " + msg[:200]
+    if "busy" in kinds:
+        return ("Gemini is overloaded or too slow right now, so the read was stopped. "
+                "Press 'Run AI again' in a moment, or fill in the fields by hand.")
+    if "not_found" in kinds:
+        return "Gemini model not found. Set GEMINI_MODEL in .env to a model listed in Google AI Studio."
+    return "Gemini call failed: " + (failures[-1][1] if failures else "unknown error")[:200]

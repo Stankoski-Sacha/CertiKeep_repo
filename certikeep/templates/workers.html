@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Workers{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>Workers</h1></div>
+<div class="pagehead">
+  <div>
+    <h1>Workers</h1>
+    <p class="sub">Names on certificates are checked against this list.</p>
+  </div>
+</div>
 <div class="grid2">
 <section class="card">
   <h2>Add a worker</h2>
@@ -9,30 +14,46 @@
     <label>Name <input name="name" required placeholder="e.g. Marc Weber"></label>
     <label>Role <input name="role" placeholder="e.g. Mason"></label>
     <fieldset><legend>Required certificates</legend>
+      <div class="choices">
       {% for key, label in CERT_TYPES.items() if key != 'other' %}
-        <label class="check"><input type="checkbox" name="required" value="{{ key }}"> {{ label }}</label>
+        <label class="check"><input type="checkbox" name="required" value="{{ key }}"><span>{{ label }}</span></label>
       {% endfor %}
+      </div>
     </fieldset>
-    <button class="btn primary">Add worker</button>
+    <button class="btn primary">{{ icon('plus') }}Add worker</button>
   </form>
-  <form method="post" action="{{ url_for('add_demo_workers') }}" class="inline">
+  <form method="post" action="{{ url_for('add_demo_workers') }}" class="demo">
+    <p class="muted small">Just trying it out?</p>
     <button class="btn">Add the 4 example workers (for the specimen certificates)</button>
   </form>
 </section>
 <section class="card">
   <h2>Worker list <span class="pill">{{ workers|length }}</span></h2>
-  <p class="muted">Names on certificates are checked against this list.</p>
+  {% if workers %}
+  <div class="table-wrap">
   <table>
-    <thead><tr><th>Name</th><th>Role</th><th>Must hold</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Must hold</th><th></th></tr></thead>
     <tbody>
     {% for w in workers %}
-      <tr><td>{{ w.name }}</td><td>{{ w.role }}</td>
-        <td>{% for t in reqs.get(w.id, []) %}<span class="tag">{{ CERT_TYPES[t] }}</span>{% endfor %}</td>
-        <td><form method="post" action="{{ url_for('delete_worker', worker_id=w.id) }}" onsubmit="return confirm('Remove {{ w.name }}?')">
-          <button class="btn small ghost">Remove</button></form></td></tr>
-    {% else %}<tr><td colspan="4" class="muted">No workers yet.</td></tr>{% endfor %}
+      <tr>
+        <td><div class="person">
+          <span class="avatar" style="--h: {{ w.name|hue }}">{{ w.name|initials }}</span>
+          <span><b class="name">{{ w.name }}</b><span class="muted small">{{ w.role }}</span></span>
+        </div></td>
+        <td>{% for t in reqs.get(w.id, []) %}<span class="tag">{{ CERT_TYPES[t] }}</span>{% else %}<span class="muted small">no requirements set</span>{% endfor %}</td>
+        <td class="right"><form method="post" action="{{ url_for('delete_worker', worker_id=w.id) }}" data-confirm="Remove {{ w.name }}?">
+          <button class="btn small ghost danger" aria-label="Remove {{ w.name }}">{{ icon('trash') }}Remove</button></form></td>
+      </tr>
+    {% endfor %}
     </tbody>
   </table>
+  </div>
+  {% else %}
+    <div class="empty">
+      <span class="empty-ic">{{ icon('users') }}</span>
+      <p><b>No workers yet.</b><br><span class="muted">Add your first worker on the left, or load the example workers.</span></p>
+    </div>
+  {% endif %}
 </section>
 </div>
 {% endblock %}

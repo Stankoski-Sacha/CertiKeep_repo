@@ -1,23 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Documents{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>All documents</h1><a class="btn primary" href="{{ url_for('upload') }}">Upload certificate</a></div>
+<div class="pagehead">
+  <div>
+    <h1>All documents</h1>
+    <p class="sub">{{ docs|length }} uploaded file{{ '' if docs|length == 1 else 's' }}, newest first.</p>
+  </div>
+  <a class="btn primary" href="{{ url_for('upload') }}">{{ icon('upload') }}Upload certificate</a>
+</div>
 <section class="card">
-<table>
+{% if docs %}
+<label class="search">{{ icon('search') }}<input type="search" id="doc-filter" placeholder="Filter by file, worker, type or status" aria-label="Filter documents"></label>
+<div class="table-wrap">
+<table id="doc-table">
   <thead><tr><th>File</th><th>Worker</th><th>Type</th><th>Expiry</th><th>Status</th><th>Confirmed by</th></tr></thead>
   <tbody>
   {% for d in docs %}
     {% set st = doc_status(d) %}
     <tr class="{{ 'rejected' if d.rejected }}">
-      <td><a href="{{ url_for('review', doc_id=d.id) }}">{{ d.original_name }}</a></td>
+      <td><a class="filelink" href="{{ url_for('review', doc_id=d.id) }}"><span class="fileicon">{{ icon('file') }}</span>{{ d.original_name }}</a></td>
       <td>{{ d.worker_name or '–' }}</td>
       <td>{{ CERT_TYPES.get(d.certificate_type, '–') }}</td>
-      <td>{{ d.expiry_date|pretty_date }}</td>
-      <td>{% if d.rejected %}<span class="tag">Rejected</span>{% else %}<span class="chip s-{{ st }}">{{ STATUS_LABELS[st] }}</span>{% endif %}</td>
-      <td>{{ d.confirmed_by or '–' }}{% if d.confirmed_at %} <span class="muted small">{{ d.confirmed_at|replace('T', ' ') }}</span>{% endif %}</td>
+      <td class="nowrap">{{ d.expiry_date|pretty_date }}</td>
+      <td>{% if d.rejected %}<span class="tag">Rejected</span>
+          {% elif d.ai_status == 'pending' %}<span class="tag info"><i class="spinner"></i>AI reading…</span>
+          {% else %}<span class="chip s-{{ st }}"><i class="dot"></i>{{ STATUS_LABELS[st] }}</span>{% endif %}</td>
+      <td>{{ d.confirmed_by or '–' }}{% if d.confirmed_at %}<br><span class="muted small">{{ d.confirmed_at|pretty_dt }}</span>{% endif %}</td>
     </tr>
-  {% else %}<tr><td colspan="6" class="muted">No documents yet.</td></tr>{% endfor %}
+  {% endfor %}
   </tbody>
 </table>
+</div>
+<p class="muted table-note" id="doc-none" hidden>No document matches the filter.</p>
+{% else %}
+  <div class="empty">
+    <span class="empty-ic">{{ icon('file') }}</span>
+    <p><b>No documents yet.</b><br><span class="muted">Upload a certificate scan or photo to get started.</span></p>
+    <a class="btn" href="{{ url_for('upload') }}">{{ icon('upload') }}Upload certificate</a>
+  </div>
+{% endif %}
 </section>
 {% endblock %}

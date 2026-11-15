@@ -9,6 +9,8 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
@@ -17,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from certikeep import create_app  # noqa: E402
 from certikeep.domain import status, validate  # noqa: E402
+from certikeep import extraction  # noqa: E402
 from certikeep.extraction import Extraction, parse_response  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
@@ -37,13 +40,20 @@ class AppFlow(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ.pop("GEMINI_API_KEY", None)
+        # AI_BACKGROUND off: the read runs inside the request, so each test sees the result at once.
         self.app = create_app({"TESTING": True, "DATABASE": os.path.join(self.tmp.name, "t.db"),
-                               "UPLOAD_DIR": os.path.join(self.tmp.name, "up")})
+                               "UPLOAD_DIR": os.path.join(self.tmp.name, "up"), "AI_BACKGROUND": False})
         self.c = self.app.test_client()
         self.c.post("/workers/demo")
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def wait_until_read(self, doc, seconds=5):
+        deadline = time.time() + seconds
+        while self.c.get(f"/documents/{doc}/status").get_json()["pending"]:
+            self.assertLess(time.time(), deadline, "the AI read never finished")
+            time.sleep(0.02)
 
     def upload(self, extractor, name="cert.png"):
         self.app.config["EXTRACT"] = extractor
@@ -124,6 +134,144 @@ class AppFlow(unittest.TestCase):
         r = self.c.post("/upload", data={"user": "M", "file": (io.BytesIO(b"x"), "virus.exe")},
                         content_type="multipart/form-data", follow_redirects=True)
         self.assertIn("Only JPG, PNG, WEBP or PDF", r.get_data(as_text=True))
+
+
+    # ---- the AI read runs in the background: the upload must never wait for Gemini
+    def test_upload_answers_before_the_ai_has_finished(self):
+        self.app.config["AI_BACKGROUND"] = True
+        release = threading.Event()
+
+        def slow(_bytes, _mime, _workers):
+            release.wait(5)
+            return fake({"worker_name": "Jane Doe", "certificate_type": "first_aid",
+                         "issue_date": "2025-01-01", "expiry_date": FUTURE})(_bytes, _mime, _workers)
+
+        doc = self.upload(slow)                       # returns although the "AI" is still busy
+        self.assertTrue(self.c.get(f"/documents/{doc}/status").get_json()["pending"])
+        page = self.c.get(f"/documents/{doc}").get_data(as_text=True)
+        self.assertIn("Reading the document", page)
+        self.assertNotIn("No expiry date", page)      # empty fields are not errors while it is reading
+        self.assertIn("AI reading", self.c.get("/").get_data(as_text=True))
+        release.set()
+        self.wait_until_read(doc)
+        page = self.c.get(f"/documents/{doc}").get_data(as_text=True)
+        self.assertNotIn("Reading the document", page)
+        self.assertIn("Suggested by fake-for-tests", page)
+
+    def test_confirming_while_the_ai_reads_is_not_overwritten(self):
+        self.app.config["AI_BACKGROUND"] = True
+        release = threading.Event()
+
+        def slow(_bytes, _mime, _workers):
+            release.wait(5)
+            return fake({"worker_name": "John Smith", "certificate_type": "crane",
+                         "issue_date": "2020-01-01", "expiry_date": "2021-01-01"})(_bytes, _mime, _workers)
+
+        doc = self.upload(slow)
+        r = self.c.post(f"/documents/{doc}/confirm", data={
+            "worker_id": self.worker_id("Jane Doe"), "certificate_type": "first_aid",
+            "issue_date": "2025-01-01", "expiry_date": FUTURE, "user": "Luc"})
+        self.assertEqual(r.status_code, 302)
+        release.set()
+        self.wait_until_read(doc)
+        with self.app.app_context():
+            from certikeep.db import get_db
+            row = get_db().execute("SELECT * FROM documents WHERE id = ?", (doc,)).fetchone()
+        self.assertEqual((row["worker_name"], row["expiry_date"]), ("Jane Doe", FUTURE))   # the person's values
+        self.assertEqual(row["ai_model"], "fake-for-tests")                                 # AI answer still recorded
+
+    def test_crashing_ai_step_releases_the_page(self):
+        self.app.config["AI_BACKGROUND"] = True
+
+        def broken(_bytes, _mime, _workers):
+            raise ModuleNotFoundError("No module named 'google'")
+
+        doc = self.upload(broken)
+        self.wait_until_read(doc)
+        self.assertIn("stopped unexpectedly", self.c.get(f"/documents/{doc}").get_data(as_text=True))
+
+    def test_read_that_never_ends_is_declared_failed(self):
+        self.app.config.update(AI_BACKGROUND=True, AI_STALE_S=0)
+        release = threading.Event()
+        doc = self.upload(lambda *_: release.wait(5) and Extraction())
+        time.sleep(1.1)                               # started_at has one-second resolution
+        self.assertFalse(self.c.get(f"/documents/{doc}/status").get_json()["pending"])
+        self.assertIn("did not finish", self.c.get(f"/documents/{doc}").get_data(as_text=True))
+        release.set()
+        time.sleep(0.2)                               # let the thread end before the temp folder goes
+
+    def test_restart_releases_documents_left_pending(self):
+        doc = self.upload(fake({}))
+        with self.app.app_context():
+            from certikeep.db import get_db
+            get_db().execute("UPDATE documents SET ai_status = 'pending' WHERE id = ?", (doc,))
+            get_db().commit()
+        again = create_app({"TESTING": True, "DATABASE": self.app.config["DATABASE"],
+                            "UPLOAD_DIR": self.app.config["UPLOAD_DIR"]})
+        page = again.test_client().get(f"/documents/{doc}").get_data(as_text=True)
+        self.assertNotIn("Reading the document", page)
+        self.assertIn("interrupted", page)
+
+
+class GeminiCalls(unittest.TestCase):
+    """extract() with the network call replaced: timeouts, overload and fallback, without real requests."""
+    GOOD = json.dumps({"readable": True, **{f: {"value": None, "confidence": "low"} for f in extraction.FIELDS}})
+
+    def setUp(self):
+        self.env = dict(os.environ)
+        os.environ.update(GEMINI_MODEL="main-model", GEMINI_FALLBACK_MODEL="backup-model")
+        self._sleep, extraction.time.sleep = extraction.time.sleep, lambda _s: None
+        extraction._busy_until.clear()
+
+    def tearDown(self):
+        extraction.time.sleep = self._sleep
+        os.environ.clear()
+        os.environ.update(self.env)
+
+    def run_with(self, answers):
+        """answers: model -> list of results in call order; an Exception instance is raised."""
+        calls = []
+
+        def generate(model, timeout_s):
+            calls.append((model, timeout_s))
+            result = answers[model].pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+        return extraction.extract(b"x", "image/png", [], generate=generate), calls
+
+    def test_every_call_has_a_timeout(self):
+        ex, calls = self.run_with({"main-model": [self.GOOD]})
+        self.assertEqual(ex.model, "main-model")
+        self.assertTrue(0 < calls[0][1] <= extraction.ATTEMPT_TIMEOUT_S)
+
+    def test_overloaded_model_falls_back_to_the_backup(self):
+        ex, calls = self.run_with({"main-model": [RuntimeError("503 UNAVAILABLE high demand")],
+                                   "backup-model": [self.GOOD]})
+        self.assertEqual([m for m, _ in calls], ["main-model", "backup-model"])
+        self.assertEqual(ex.model, "backup-model")
+        self.assertIsNone(ex.error)
+
+    def test_busy_model_is_tried_last_on_the_next_upload(self):
+        self.run_with({"main-model": [RuntimeError("503 UNAVAILABLE")], "backup-model": [self.GOOD]})
+        ex, calls = self.run_with({"backup-model": [self.GOOD]})
+        self.assertEqual([m for m, _ in calls], ["backup-model"])   # no second wait for the busy model
+        self.assertEqual(ex.model, "backup-model")
+
+    def test_gives_up_with_a_clear_message_when_all_models_are_busy(self):
+        busy = lambda: RuntimeError("504 DEADLINE_EXCEEDED")   # noqa: E731
+        ex, calls = self.run_with({"main-model": [busy(), busy()], "backup-model": [busy(), busy()]})
+        self.assertEqual(len(calls), 4)               # two rounds, then stop: never an endless wait
+        self.assertIn("overloaded or too slow", ex.error)
+
+    def test_rejected_key_stops_at_once(self):
+        ex, calls = self.run_with({"main-model": [RuntimeError("400 API key not valid. API_KEY_INVALID")]})
+        self.assertEqual(len(calls), 1)
+        self.assertIn("rejected the API key", ex.error)
+
+    def test_retired_model_uses_the_backup(self):
+        ex, _ = self.run_with({"main-model": [RuntimeError("404 NOT_FOUND")], "backup-model": [self.GOOD]})
+        self.assertEqual(ex.model, "backup-model")
 
 
 class Domain(unittest.TestCase):

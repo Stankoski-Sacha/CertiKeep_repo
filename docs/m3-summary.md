@@ -1,6 +1,6 @@
 # CertiKeep — M3 summary
 
-**Team:** Sacha Stankoski · Luc [surname] · Mattéo [surname]  
+**Team:** Sacha Stankoski · Luc Muller · Mattéo Nere
 **Repository:** https://github.com/Stankoski-Sacha/CertiKeep_repo — **tag `m3`**  
 **Demo video (3 min, unlisted):** [paste link]  
 **Run it:** README, 5 steps (`git clone --branch m3 …` → venv → `pip install -r requirements.txt` → `.env` with Gemini key → `python app.py`).
@@ -32,8 +32,10 @@ document image goes to Gemini.
    "valid until further notice" option yet.
 2. **No login.** The reviewer types their name, so anyone with access to the app can confirm under any name. The
    audit trail records the name typed, not a verified identity.
-3. **The upload waits for Gemini (5–20 s, up to ~30 s on free-tier rate limits).** The extraction runs inside the
-   request; on rate limits the person sees an error and must press *Run AI again* or type the values.
+3. **The AI read is slow or fails when Gemini is busy.** The upload answers at once and the read runs in the
+   background (the review page shows progress). Each call is cut off after 30 s, then a second model is tried;
+   after about 100 s the read stops and the person must press *Run AI again* or type the values. The read is a
+   thread inside the app, so a read in progress is lost if the app is restarted.
 4. **One certificate per file.** A PDF with several certificates or several workers produces one record only.
 5. **Documents are sent to Google.** On the free tier Google may use inputs to improve its products, so the
    current version is only suitable for own, consented or redacted documents, not real customer data.
@@ -47,6 +49,6 @@ document image goes to Gemini.
 
 | Person | Contribution |
 |---|---|
-| Sacha | [one line] |
+| Sacha | First website design and AI implementation |
 | Luc | [one line] |
-| Mattéo | [one line] |
+| Mattéo | Improvements to the website design, with help of claude code. Solving the issues with the AI |

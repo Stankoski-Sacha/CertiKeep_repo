@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS documents (
     ai_readable       INTEGER NOT NULL DEFAULT 0,
     ai_error          TEXT,
     ai_latency_s      REAL,
+    -- 'pending' while the AI read runs in the background, then 'done'
+    ai_status         TEXT NOT NULL DEFAULT 'done',
+    ai_started_at     TEXT,
     -- current values (AI suggestion, later corrected/confirmed by a person)
     worker_id         INTEGER REFERENCES workers(id) ON DELETE SET NULL,
     worker_name       TEXT,
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
-        g.db = sqlite3.connect(current_app.config["DATABASE"])
+        # timeout: the background AI thread and a request may write at the same moment
+        g.db = sqlite3.connect(current_app.config["DATABASE"], timeout=15)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
@@ -70,10 +74,26 @@ def close_db(_exc=None) -> None:
         db.close()
 
 
+# Columns added after the first release: (table, column, definition). Added to older databases on start.
+ADDED_COLUMNS = [
+    ("documents", "ai_status", "TEXT NOT NULL DEFAULT 'done'"),
+    ("documents", "ai_started_at", "TEXT"),
+]
+
+INTERRUPTED = "The AI read was interrupted because the app was restarted. Press 'Run AI again'."
+
+
 def init_db(path: str) -> None:
     conn = sqlite3.connect(path)
     try:
         conn.executescript(SCHEMA)
+        for table, column, definition in ADDED_COLUMNS:
+            if column not in {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        # A read that was running when the app stopped can never finish: release it, or its page waits forever.
+        conn.execute("UPDATE documents SET ai_status = 'done', ai_error = ? WHERE ai_status = 'pending'",
+                     (INTERRUPTED,))
+        conn.commit()
     finally:
         conn.close()
 

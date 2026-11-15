@@ -1,18 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Audit trail{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>Audit trail</h1><a class="btn" href="{{ url_for('audit_csv') }}">Export CSV</a></div>
+<div class="pagehead">
+  <div>
+    <h1>Audit trail</h1>
+    <p class="sub">Every upload, AI suggestion, correction and confirmation, with who and when. The AI's original answer is never overwritten.</p>
+  </div>
+  <a class="btn" href="{{ url_for('audit_csv') }}">{{ icon('download') }}Export CSV</a>
+</div>
 <section class="card">
-<p class="muted">Every upload, AI suggestion, correction and confirmation, with who and when. The AI's original answer is never overwritten.</p>
+{% if entries %}
+<div class="table-wrap">
 <table class="audit">
   <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Document</th><th>Details</th></tr></thead>
   <tbody>
   {% for e in entries %}
-    <tr><td class="nowrap">{{ e.at|replace('T', ' ') }}</td><td>{{ e.actor }}</td><td>{{ e.action|replace('_', ' ') }}</td>
+    <tr>
+      <td class="nowrap muted">{{ e.at|pretty_dt }}</td>
+      <td class="nowrap">{{ e.actor }}</td>
+      <td><span class="tag a-{{ e.action }}">{{ e.action|replace('_', ' ') }}</span></td>
       <td>{% if e.document_id %}<a href="{{ url_for('review', doc_id=e.document_id) }}">#{{ e.document_id }}</a>{% endif %}</td>
-      <td><code>{{ e.detail }}</code></td></tr>
-  {% else %}<tr><td colspan="5" class="muted">Nothing yet.</td></tr>{% endfor %}
+      <td class="detail">
+        {% set pairs = e.detail|detail_pairs %}
+        {% if pairs %}<dl class="kv">{% for k, v in pairs %}<div><dt>{{ k }}</dt><dd>{{ v }}</dd></div>{% endfor %}</dl>
+        {% else %}{{ e.detail }}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
   </tbody>
 </table>
+</div>
+{% else %}
+  <div class="empty">
+    <span class="empty-ic">{{ icon('clock') }}</span>
+    <p><b>Nothing yet.</b><br><span class="muted">Actions appear here as soon as someone uploads or confirms a certificate.</span></p>
+  </div>
+{% endif %}
 </section>
 {% endblock %}
