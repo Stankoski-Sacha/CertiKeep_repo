@@ -14,6 +14,7 @@ import time
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -126,7 +127,8 @@ class AppFlow(unittest.TestCase):
 
     def test_missing_api_key_goes_to_review_instead_of_crashing(self):
         from certikeep.extraction import extract
-        doc = self.upload(extract)
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):   # ignore a real key from .env
+            doc = self.upload(extract)
         page = self.c.get(f"/documents/{doc}").get_data(as_text=True)
         self.assertIn("GEMINI_API_KEY is not set", page)
 
