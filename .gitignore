@@ -9,6 +9,7 @@ instance/
 venv/
 __pycache__/
 *.pyc
+.vscode/
 
 # macOS
 .DS_Store
