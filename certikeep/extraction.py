@@ -93,8 +93,8 @@ def parse_response(raw: str) -> Extraction:
         ex.confidences[f] = conf if conf in {"high", "medium", "low"} else "low"
     return ex
 
-DEFAULT_MODEL = "gemini-3.6-flash"
-DEFAULT_FALLBACK_MODEL = "gemini-3.8-flash"   # tried when the main model is overloaded, slow or retired
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_FALLBACK_MODEL = "gemini-3.6-flash"   # tried when the main model is overloaded, slow or retired
 ATTEMPT_TIMEOUT_S = 30     # one call may take this long, then we move on
 TOTAL_BUDGET_S = 100       # the whole read gives up after this, so nobody waits forever
 BUSY_COOLDOWN_S = 300      # a model that was overloaded is tried last for this long

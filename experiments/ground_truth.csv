@@ -1,0 +1,11 @@
+file,worker_name,certificate_type,issue_date,expiry_date,readable,source,notes
+specimen-1.png,Marc Weber,medical_fitness,2025-03-14,2027-03-14,yes,synthetic specimen (team-made),FR; birth date and signing date as distractors
+specimen-2.png,Jane Doe,medical_fitness,2026-11-10,2028-11-10,yes,synthetic specimen (team-made),EN; dates written in words
+specimen-3.png,John Smith,medical_fitness,2025-09-05,2026-09-05,yes,synthetic specimen (team-made),DE; expired; birth date as distractor
+specimen-4.png,Sophie Martin,medical_fitness,2026-10-02,,yes,synthetic specimen (team-made),FR; no expiry printed - correct answer is empty
+specimen_05_first_aid_EN.pdf,Marc Weber,first_aid,2024-12-10,2026-12-10,yes,synthetic specimen (team-made),EN landscape
+specimen_06_working_at_height_FR.pdf,Jane Doe,working_at_height,2024-01-10,2027-01-10,yes,synthetic specimen (team-made),FR; surname first
+specimen_07_scaffolding_DE.pdf,Jane Doe,scaffolding,2025-05-03,2028-05-03,yes,synthetic specimen (team-made),DE; signing date as distractor
+specimen_08_crane_EN.pdf,John Smith,crane,2021-09-20,2026-09-20,yes,synthetic specimen (team-made),EN landscape; expired
+specimen_09_electrical_FR.pdf,Sophie Martin,electrical,2025-06-12,2028-06-12,yes,synthetic specimen (team-made),FR; "date d'échéance" wording
+specimen_blurry.png,,,,,no,synthetic specimen (team-made),page 2 blurred on purpose
