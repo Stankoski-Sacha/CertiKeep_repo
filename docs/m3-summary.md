@@ -1,9 +1,9 @@
 # CertiKeep — M3 summary
 
 **Team:** Sacha Stankoski · Luc Muller · Mattéo Nere
-**Repository:** https://github.com/Stankoski-Sacha/CertiKeep_repo — **tag `m3`**  
+**Repository:** https://github.com/Stankoski-Sacha/CertiKeep_repo 
 **Demo video (3 min, unlisted):** [paste link]  
-**Run it:** README, 5 steps (`git clone --branch m3 …` → venv → `pip install -r requirements.txt` → `.env` with Gemini key → `python app.py`).
+**Run it:** README, 5 steps (`git clone` → venv → `pip install -r requirements.txt` → `.env` with Gemini key → `python app.py`).
 Tested on a laptop that is not ours: [whose laptop, OS, date].
 
 ## What it does
