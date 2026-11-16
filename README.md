@@ -63,7 +63,7 @@ The tests replace Gemini with a fixed answer so the flow can be checked offline;
 - **"Gemini model not found"** – Google retired the model; set `GEMINI_MODEL=` in `.env` to a current one from AI Studio.
 - **"free-tier limit reached"** – wait a minute and press *Run AI again*, or enter the fields by hand.
 - **"Gemini is overloaded or too slow"** – each call is cut off after 30 s and a second model is tried
-  (`GEMINI_FALLBACK_MODEL=` in `.env`, default `gemini-3.8-flash`; leave it empty to switch this off). If both
+  (`GEMINI_FALLBACK_MODEL=` in `.env`, default `gemini-3.6-flash`; leave it empty to switch this off). If both
   fail the read stops after about 100 s: press *Run AI again* later, or enter the fields by hand.
 - **Port already in use** – `PORT=8001 python app.py` (Windows PowerShell: `$env:PORT=8001; python app.py`).
 

@@ -32,10 +32,15 @@ document image goes to Gemini.
    "valid until further notice" option yet.
 2. **No login.** The reviewer types their name, so anyone with access to the app can confirm under any name. The
    audit trail records the name typed, not a verified identity.
-3. **The AI read is slow or fails when Gemini is busy.** The upload answers at once and the read runs in the
-   background (the review page shows progress). Each call is cut off after 30 s, then a second model is tried;
-   after about 100 s the read stops and the person must press *Run AI again* or type the values. The read is a
-   thread inside the app, so a read in progress is lost if the app is restarted.
+3. **The AI read depends on Google's capacity, and it fails when the models are overloaded.** On 16 Nov 2026,
+   `gemini-3.6-flash` and `gemini-3.8-flash` (our main and fallback model) both returned
+   *503 "high demand"* or *504 timeout* on the same specimen, so the read gave up after about 90 s and the
+   document went to *needs review* with empty fields. `gemini-3.7-flash` and `gemini-3.1-flash-lite` also
+   returned 503 or timed out, while `gemini-3.5-flash-lite` read the same file correctly in about 2 s.
+   The app handles this safely (banner, *Run AI again*, manual entry, no guessed values), but on such days
+   the user waits up to ~100 s for nothing. Model names are also not stable: `gemini-2.5-flash` is no longer
+   available to new users. The read runs as a thread inside the app, so a read in progress is lost if the
+   app is restarted. We now try `gemini-3.5-flash-lite` first; it is faster but a smaller model, and its accuracy on messy phone photos is not yet tested.
 4. **One certificate per file.** A PDF with several certificates or several workers produces one record only.
 5. **Documents are sent to Google.** On the free tier Google may use inputs to improve its products, so the
    current version is only suitable for own, consented or redacted documents, not real customer data.
@@ -49,6 +54,6 @@ document image goes to Gemini.
 
 | Person | Contribution |
 |---|---|
-| Sacha | First website design and AI implementation |
-| Luc |  |
+| Sacha | First website design and AI implementation, demo video |
+| Luc | Made the architecture |
 | Mattéo | Improvements to the website design, with help of claude code. Solving the issues with the AI |
