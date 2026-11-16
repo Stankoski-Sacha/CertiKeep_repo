@@ -13,8 +13,8 @@ expiring in 30/60 days, expired, missing or waiting for review. Every step is re
 You need **Python 3.10+** and a free **Gemini API key** from https://aistudio.google.com/apikey.
 
 ```bash
-# 1. Get the code (M3 version)
-git clone --branch m3 https://github.com/Stankoski-Sacha/CertiKeep_repo.git && cd CertiKeep_repo
+# 1. Get the code 
+git clone m3 https://github.com/Stankoski-Sacha/CertiKeep_repo.git && cd CertiKeep_repo
 
 # 2. Create a virtual environment
 python3 -m venv .venv && source .venv/bin/activate        # Windows: py -m venv .venv && .venv\Scripts\activate
