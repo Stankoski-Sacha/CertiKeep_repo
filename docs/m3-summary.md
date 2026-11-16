@@ -2,7 +2,7 @@
 
 **Team:** Sacha Stankoski · Luc Muller · Mattéo Nere
 **Repository:** https://github.com/Stankoski-Sacha/CertiKeep_repo 
-**Demo video (3 min, unlisted):** (https://www.youtube.com/watch?v=day8FJqG2Ds)  
+**Demo video (3 min, unlisted):** https://www.youtube.com/watch?v=day8FJqG2Ds
 **Run it:** README, 5 steps (`git clone` → venv → `pip install -r requirements.txt` → `.env` with Gemini key → `python app.py`).
 Tested on a laptop that is not ours: Sachas laptop which is a thinkpad who runs Fedora 44 kde on November 16 2026.
 
